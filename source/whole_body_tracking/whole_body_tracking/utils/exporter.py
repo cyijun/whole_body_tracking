@@ -3,34 +3,35 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import copy
 import os
 import torch
 
 import onnx
 
 from isaaclab.envs import ManagerBasedRLEnv
-from isaaclab_rl.rsl_rl.exporter import _OnnxPolicyExporter
 
 from whole_body_tracking.tasks.tracking.mdp import MotionCommand
 
 
 def export_motion_policy_as_onnx(
     env: ManagerBasedRLEnv,
-    actor_critic: object,
+    policy: object,
     path: str,
-    normalizer: object | None = None,
     filename="policy.onnx",
     verbose=False,
 ):
     if not os.path.exists(path):
         os.makedirs(path, exist_ok=True)
-    policy_exporter = _OnnxMotionPolicyExporter(env, actor_critic, normalizer, verbose)
+    policy_exporter = _OnnxMotionPolicyExporter(env, policy, verbose)
     policy_exporter.export(path, filename)
 
 
-class _OnnxMotionPolicyExporter(_OnnxPolicyExporter):
-    def __init__(self, env: ManagerBasedRLEnv, actor_critic, normalizer=None, verbose=False):
-        super().__init__(actor_critic, normalizer, verbose)
+class _OnnxMotionPolicyExporter(torch.nn.Module):
+    def __init__(self, env: ManagerBasedRLEnv, policy, verbose=False):
+        super().__init__()
+        self.verbose = verbose
+        self.policy = copy.deepcopy(policy.as_onnx(verbose=verbose))
         cmd: MotionCommand = env.command_manager.get_term("motion")
 
         self.joint_pos = cmd.motion.joint_pos.to("cpu")
@@ -44,7 +45,7 @@ class _OnnxMotionPolicyExporter(_OnnxPolicyExporter):
     def forward(self, x, time_step):
         time_step_clamped = torch.clamp(time_step.long().squeeze(-1), max=self.time_step_total - 1)
         return (
-            self.actor(self.normalizer(x)),
+            self.policy(x),
             self.joint_pos[time_step_clamped],
             self.joint_vel[time_step_clamped],
             self.body_pos_w[time_step_clamped],
@@ -55,14 +56,15 @@ class _OnnxMotionPolicyExporter(_OnnxPolicyExporter):
 
     def export(self, path, filename):
         self.to("cpu")
-        obs = torch.zeros(1, self.actor[0].in_features)
+        self.eval()
+        obs = torch.zeros(1, self.policy.input_size)
         time_step = torch.zeros(1, 1)
         torch.onnx.export(
             self,
             (obs, time_step),
             os.path.join(path, filename),
             export_params=True,
-            opset_version=11,
+            opset_version=18,
             verbose=self.verbose,
             input_names=["obs", "time_step"],
             output_names=[
@@ -74,7 +76,6 @@ class _OnnxMotionPolicyExporter(_OnnxPolicyExporter):
                 "body_lin_vel_w",
                 "body_ang_vel_w",
             ],
-            dynamic_axes={},
         )
 
 
@@ -102,8 +103,8 @@ def attach_onnx_metadata(env: ManagerBasedRLEnv, run_path: str, path: str, filen
     metadata = {
         "run_path": run_path,
         "joint_names": env.scene["robot"].data.joint_names,
-        "joint_stiffness": env.scene["robot"].data.joint_stiffness[0].cpu().tolist(),
-        "joint_damping": env.scene["robot"].data.joint_damping[0].cpu().tolist(),
+        "joint_stiffness": env.scene["robot"].data.joint_stiffness.torch[0].cpu().tolist(),
+        "joint_damping": env.scene["robot"].data.joint_damping.torch[0].cpu().tolist(),
         "default_joint_pos": env.scene["robot"].data.default_joint_pos_nominal.cpu().tolist(),
         "command_names": env.command_manager.active_terms,
         "observation_names": observation_names,

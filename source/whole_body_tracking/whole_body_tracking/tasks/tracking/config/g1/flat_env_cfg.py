@@ -1,4 +1,4 @@
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from whole_body_tracking.robots.g1 import G1_ACTION_SCALE, G1_CYLINDER_CFG
 from whole_body_tracking.tasks.tracking.config.g1.agents.rsl_rl_ppo_cfg import LOW_FREQ_SCALE
@@ -44,4 +44,5 @@ class G1FlatLowFreqEnvCfg(G1FlatEnvCfg):
     def __post_init__(self):
         super().__post_init__()
         self.decimation = round(self.decimation / LOW_FREQ_SCALE)
+        self.sim.render_interval = self.decimation
         self.rewards.action_rate_l2.weight *= LOW_FREQ_SCALE

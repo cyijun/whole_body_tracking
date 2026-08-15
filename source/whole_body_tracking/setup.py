@@ -3,7 +3,7 @@
 import os
 import toml
 
-from setuptools import setup
+from setuptools import find_packages, setup
 
 # Obtain the extension data from the extension.toml file
 EXTENSION_PATH = os.path.dirname(os.path.realpath(__file__))
@@ -15,12 +15,13 @@ INSTALL_REQUIRES = [
     "psutil",
     "onnxscript",
     "wandb>=0.19",
+    "moviepy>=1.0.3,<2.0.0.dev0",
 ]
 
 # Installation operation
 setup(
     name="whole_body_tracking",
-    packages=["whole_body_tracking"],
+    packages=find_packages(),
     author=EXTENSION_TOML_DATA["package"]["author"],
     maintainer=EXTENSION_TOML_DATA["package"]["maintainer"],
     url=EXTENSION_TOML_DATA["package"]["repository"],
@@ -30,12 +31,10 @@ setup(
     install_requires=INSTALL_REQUIRES,
     license="MIT",
     include_package_data=True,
-    python_requires=">=3.10",
+    python_requires=">=3.12,<3.13",
     classifiers=[
         "Natural Language :: English",
-        "Programming Language :: Python :: 3.10",
-        "Isaac Sim :: 2023.1.1",
-        "Isaac Sim :: 4.0.0",
+        "Programming Language :: Python :: 3.12",
     ],
     zip_safe=False,
 )
