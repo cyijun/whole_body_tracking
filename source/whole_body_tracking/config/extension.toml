@@ -7,12 +7,12 @@ version = "0.1.0"
 category = "isaaclab"
 readme  = "README.md"
 
-title = "Extension Template"
-author = "Isaac Lab Project Developers"
-maintainer = "Isaac Lab Project Developers"
-description="Extension Template for Isaac Lab"
-repository = "https://github.com/isaac-sim/IsaacLabExtensionTemplate.git"
-keywords = ["extension", "template", "isaaclab"]
+title = "BeyondMimic Whole Body Tracking"
+author = "Hybrid Robotics"
+maintainer = "Hybrid Robotics"
+description = "Whole-body motion tracking environments for BeyondMimic"
+repository = "https://github.com/HybridRobotics/whole_body_tracking.git"
+keywords = ["humanoid", "motion-tracking", "isaaclab", "reinforcement-learning"]
 
 [dependencies]
 "isaaclab" = {}

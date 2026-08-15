@@ -1,9 +1,9 @@
 # BeyondMimic Motion Tracking Code
 
-[![IsaacSim](https://img.shields.io/badge/IsaacSim-4.5.0-silver.svg)](https://docs.omniverse.nvidia.com/isaacsim/latest/overview.html)
-[![Isaac Lab](https://img.shields.io/badge/IsaacLab-2.1.0-silver)](https://isaac-sim.github.io/IsaacLab)
-[![Python](https://img.shields.io/badge/python-3.10-blue.svg)](https://docs.python.org/3/whatsnew/3.10.html)
-[![Linux platform](https://img.shields.io/badge/platform-linux--64-orange.svg)](https://releases.ubuntu.com/20.04/)
+[![IsaacSim](https://img.shields.io/badge/IsaacSim-6.0.1-silver.svg)](https://docs.omniverse.nvidia.com/isaacsim/latest/overview.html)
+[![Isaac Lab](https://img.shields.io/badge/IsaacLab-develop-silver)](https://isaac-sim.github.io/IsaacLab)
+[![Python](https://img.shields.io/badge/python-3.12-blue.svg)](https://docs.python.org/3/whatsnew/3.12.html)
+[![Linux platform](https://img.shields.io/badge/platform-linux--aarch64%20%7C%20x86__64-orange.svg)](https://ubuntu.com/)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://pre-commit.com/)
 [![License](https://img.shields.io/badge/license-MIT-yellow.svg)](https://opensource.org/license/mit)
 
@@ -29,9 +29,10 @@ the [motion_tracking_controller](https://github.com/HybridRobotics/motion_tracki
 
 ## Installation
 
-- Install Isaac Lab v2.1.0 by following
-  the [installation guide](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/index.html). We recommend
-  using the conda installation as it simplifies calling Python scripts from the terminal.
+- Install Isaac Sim 6.0.1 and the current Isaac Lab `develop` branch by following the
+  [Isaac Lab installation guide](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/index.html).
+  This migrated branch targets Python 3.12 and RSL-RL 5.x. The previously documented Isaac Sim 4.5 / Isaac Lab 2.1
+  stack remains useful only for running the unmodified upstream code on x86_64.
 
 - Clone this repository separately from the Isaac Lab installation (i.e., outside the `IsaacLab` directory):
 
@@ -54,11 +55,17 @@ tar -xzf unitree_description.tar.gz -C source/whole_body_tracking/whole_body_tra
 rm unitree_description.tar.gz
 ```
 
-- Using a Python interpreter that has Isaac Lab installed, install the library
+- Create a repository-local environment and install the library with `uv`:
 
 ```bash
-python -m pip install -e source/whole_body_tracking
+uv venv --python 3.12 .venv
+source .venv/bin/activate
+# Install Isaac Sim and Isaac Lab into this environment first.
+uv pip install -e source/whole_body_tracking
 ```
+
+The configured DGX Spark workspace can be activated with `source scripts/activate_env.zsh`. This also applies the
+aarch64 Isaac Sim runtime settings and non-secret W&B defaults; `WANDB_API_KEY` remains in the user's shell profile.
 
 ## Motion Tracking
 
@@ -86,15 +93,18 @@ Note: The reference motion should be retargeted and use generalized coordinates 
   acceleration) via forward kinematics,
 
 ```bash
-python scripts/csv_to_npz.py --input_file {motion_name}.csv --input_fps 30 --output_name {motion_name} --headless
+python scripts/csv_to_npz.py --input_file {motion_name}.csv --input_fps 30 --output_name {motion_name}
 ```
 
-This will automatically upload the processed motion file to the WandB registry with output name {motion_name}.
+This writes a 50 Hz, XYZW-quaternion NPZ and uploads it to the W&B registry. Legacy NPZ files without a
+`quat_order` field are treated as WXYZ and converted in memory when loaded.
 
 - Test if the WandB registry works properly by replaying the motion in Isaac Sim:
 
 ```bash
-python scripts/replay_npz.py --registry_name={your-organization}-org/wandb-registry-motions/{motion_name}
+python scripts/replay_npz.py --registry_name {your-organization}-org/wandb-registry-motions/{motion_name}
+# Or replay a local file:
+python scripts/replay_npz.py --motion_file motion.npz
 ```
 
 - Debugging
@@ -108,8 +118,11 @@ python scripts/replay_npz.py --registry_name={your-organization}-org/wandb-regis
 ```bash
 python scripts/rsl_rl/train.py --task=Tracking-Flat-G1-v0 \
 --registry_name {your-organization}-org/wandb-registry-motions/{motion_name} \
---headless --logger wandb --log_project_name {project_name} --run_name {run_name}
+--logger wandb --log_project_name {project_name} --run_name {run_name}
 ```
+
+For an offline/local smoke run, replace `--registry_name ...` with `--motion_file motion.npz`. Current AppLauncher
+starts headless by default; pass `--viz kit` when a desktop visualizer is wanted.
 
 ### Policy Evaluation
 
@@ -119,8 +132,23 @@ python scripts/rsl_rl/train.py --task=Tracking-Flat-G1-v0 \
 python scripts/rsl_rl/play.py --task=Tracking-Flat-G1-v0 --num_envs=2 --wandb_path={wandb-run-path}
 ```
 
+To record one 200-step MP4 from a single environment, add `--video`. The migrated launcher automatically enables the
+Kit recorder in headless mode and writes the clip under the checkpoint directory's `videos/play/` folder:
+
+```bash
+python scripts/rsl_rl/play.py --task=Tracking-Flat-G1-v0 --num_envs=1 \
+--wandb_path={wandb-run-path} --video --video_length=200
+```
+
 The WandB run path can be located in the run overview. It follows the format {your_organization}/{project_name}/ along
 with a unique 8-character identifier. Note that run_name is different from run_path.
+
+Legacy RSL-RL checkpoints from the Isaac Lab 2.1 version are converted automatically when loaded. To produce a
+permanent RSL-RL 5.x checkpoint without starting the simulator:
+
+```bash
+python scripts/rsl_rl/convert_checkpoint.py old_model.pt new_model.pt
+```
 
 ## Code Structure
 

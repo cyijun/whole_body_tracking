@@ -25,8 +25,10 @@ DAMPING_4010 = 2.0 * DAMPING_RATIO * ARMATURE_4010 * NATURAL_FREQ
 G1_CYLINDER_CFG = ArticulationCfg(
     spawn=sim_utils.UrdfFileCfg(
         fix_base=False,
-        replace_cylinders_with_capsules=True,
         asset_path=f"{ASSET_DIR}/unitree_description/urdf/g1/main.urdf",
+        ros_package_paths=[
+            {"name": "unitree_description", "path": f"{ASSET_DIR}/unitree_description"},
+        ],
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,

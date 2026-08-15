@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from importlib import metadata
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -21,7 +22,12 @@ def add_rsl_rl_args(parser: argparse.ArgumentParser):
     )
     arg_group.add_argument("--run_name", type=str, default=None, help="Run name suffix to the log directory.")
     # -- load arguments
-    arg_group.add_argument("--resume", type=bool, default=None, help="Whether to resume from a checkpoint.")
+    arg_group.add_argument(
+        "--resume",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Whether to resume from a checkpoint.",
+    )
     arg_group.add_argument("--load_run", type=str, default=None, help="Name of the run folder to resume from.")
     arg_group.add_argument("--checkpoint", type=str, default=None, help="Checkpoint file to resume from.")
     # -- logger arguments
@@ -32,7 +38,10 @@ def add_rsl_rl_args(parser: argparse.ArgumentParser):
         "--log_project_name", type=str, default=None, help="Name of the logging project when using wandb or neptune."
     )
     arg_group.add_argument(
-        "--wandb_path", type=str, default=None, help="Name of the logging project when using wandb or neptune."
+        "--wandb_path",
+        type=str,
+        default=None,
+        help="W&B run path, optionally followed by a model checkpoint filename.",
     )
 
 
@@ -51,6 +60,9 @@ def parse_rsl_rl_cfg(task_name: str, args_cli: argparse.Namespace) -> RslRlOnPol
     # load the default configuration
     rslrl_cfg: RslRlOnPolicyRunnerCfg = load_cfg_from_registry(task_name, "rsl_rl_cfg_entry_point")
     rslrl_cfg = update_rsl_rl_cfg(rslrl_cfg, args_cli)
+    from isaaclab_rl.rsl_rl import handle_deprecated_rsl_rl_cfg
+
+    rslrl_cfg = handle_deprecated_rsl_rl_cfg(rslrl_cfg, metadata.version("rsl-rl-lib"))
     return rslrl_cfg
 
 

@@ -3,25 +3,42 @@ import os
 from rsl_rl.env import VecEnv
 from rsl_rl.runners.on_policy_runner import OnPolicyRunner
 
-from isaaclab_rl.rsl_rl import export_policy_as_onnx
-
 import wandb
+from whole_body_tracking.utils.checkpoint import load_compatible_checkpoint
 from whole_body_tracking.utils.exporter import attach_onnx_metadata, export_motion_policy_as_onnx
 
 
 class MyOnPolicyRunner(OnPolicyRunner):
+    """RSL-RL runner with legacy checkpoint loading and W&B ONNX export."""
+
+    def load(self, path: str, load_cfg=None, strict=True, map_location=None):
+        return load_compatible_checkpoint(self, path, load_cfg, strict, map_location)
+
+    def _export_to_wandb(self, checkpoint_path: str):
+        if self.logger.logger_type != "WandbLogWriter" or wandb.run is None:
+            return
+
+        policy_path = os.path.dirname(checkpoint_path)
+        filename = f"{os.path.basename(policy_path)}.onnx"
+        export_motion_policy_as_onnx(
+            self.env.unwrapped,
+            self.alg.get_policy(),
+            path=policy_path,
+            filename=filename,
+        )
+        run_path = wandb.run.path
+        if not isinstance(run_path, str):
+            run_path = "/".join(run_path)
+        attach_onnx_metadata(self.env.unwrapped, run_path, path=policy_path, filename=filename)
+        wandb.save(os.path.join(policy_path, filename), base_path=policy_path)
+
     def save(self, path: str, infos=None):
-        """Save the model and training information."""
+        """Save the model, export ONNX, and upload it when W&B is active."""
         super().save(path, infos)
-        if self.logger_type in ["wandb"]:
-            policy_path = path.split("model")[0]
-            filename = policy_path.split("/")[-2] + ".onnx"
-            export_policy_as_onnx(self.alg.policy, normalizer=self.obs_normalizer, path=policy_path, filename=filename)
-            attach_onnx_metadata(self.env.unwrapped, wandb.run.name, path=policy_path, filename=filename)
-            wandb.save(policy_path + filename, base_path=os.path.dirname(policy_path))
+        self._export_to_wandb(path)
 
 
-class MotionOnPolicyRunner(OnPolicyRunner):
+class MotionOnPolicyRunner(MyOnPolicyRunner):
     def __init__(
         self, env: VecEnv, train_cfg: dict, log_dir: str | None = None, device="cpu", registry_name: str = None
     ):
@@ -29,18 +46,8 @@ class MotionOnPolicyRunner(OnPolicyRunner):
         self.registry_name = registry_name
 
     def save(self, path: str, infos=None):
-        """Save the model and training information."""
+        """Save/export the policy and link its source motion artifact once."""
         super().save(path, infos)
-        if self.logger_type in ["wandb"]:
-            policy_path = path.split("model")[0]
-            filename = policy_path.split("/")[-2] + ".onnx"
-            export_motion_policy_as_onnx(
-                self.env.unwrapped, self.alg.policy, normalizer=self.obs_normalizer, path=policy_path, filename=filename
-            )
-            attach_onnx_metadata(self.env.unwrapped, wandb.run.name, path=policy_path, filename=filename)
-            wandb.save(policy_path + filename, base_path=os.path.dirname(policy_path))
-
-            # link the artifact registry to this run
-            if self.registry_name is not None:
-                wandb.run.use_artifact(self.registry_name)
-                self.registry_name = None
+        if self.logger.logger_type == "WandbLogWriter" and wandb.run is not None and self.registry_name is not None:
+            wandb.run.use_artifact(self.registry_name)
+            self.registry_name = None

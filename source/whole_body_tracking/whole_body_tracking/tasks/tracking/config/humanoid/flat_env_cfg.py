@@ -1,5 +1,5 @@
 from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from whole_body_tracking.assets import ASSET_DIR
 from whole_body_tracking.robots.smpl import SMPL_HUMANOID
@@ -15,7 +15,7 @@ class HumanoidFlatEnvCfg(TrackingEnvCfg):
             actuators={
                 "body": ImplicitActuatorCfg(
                     joint_names_expr=[".*"],
-                    velocity_limit=100.0,
+                    velocity_limit_sim=100.0,
                     stiffness=None,
                     damping=None,
                 ),
